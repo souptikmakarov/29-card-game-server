@@ -1,0 +1,19 @@
+{
+  "name": "game_server",
+  "version": "1.0.0",
+  "description": "Game server for the 29 card game",
+  "main": "server.js",
+  "dependencies": {
+    "config": "^3.2.5",
+    "express": "^4.17.1",
+    "mongoose": "^5.8.9",
+    "socket.io": "^2.3.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "author": "Makarov",
+  "license": "ISC"
+}

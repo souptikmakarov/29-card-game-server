@@ -1,0 +1,5 @@
+{
+    "appPort" : "3000",
+    "node_env" : "development",
+    "db_conn_url" : "mongodb://localhost:27017/pnp"
+}
