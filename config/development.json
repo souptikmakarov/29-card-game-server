@@ -1,5 +1,5 @@
 {
     "node_env" : "development",
     "appPort" : "3000",
-    "db_conn_url" : "mongodb://localhost:27017/pnp"
+    "db_conn_url" : "mongodb://localhost:27017/twentynine-game"    
 }

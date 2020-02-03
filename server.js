@@ -1,27 +1,34 @@
 const config = require('config');
-const mongoose = require('mongoose');   // Module to connect to MongoDB
-const room_provider = require('./room-provider');
-
-// module.exports = function () {
-
-//     const dbConnUrl = config.get('db_conn_url');
-
-//     // Connect to the database. In case of any error, log the error and exit as this is a Fatal error.
-//     mongoose.connect(dbConnUrl)
-//         .then(() => logger.info('Successfully connected to the Database.'))
-//         .catch(error => {
-//             logger.info('FATAL ERROR: Connection to Database Failed.');
-//             throw new Error(error);
-//         });
-// };
-var express = require('express');
+var NewGameRoom = require('./game-server');
+var PlayerRepo = require('./player-repo');
 var app = require('express')();
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
+var bodyParser = require('body-parser');
+var monk = require('monk');
+
 var port = config.get('appPort');
-var rooms = new room_provider();
+var mongoURL = config.get('db_conn_url');
+const db = monk(mongoURL);
+
+let player_repo = new PlayerRepo(db);
+let game_rooms = new NewGameRoom(db, player_repo);
+
+var allowCrossDomain = function(req, res, next) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    next();
+}
 
 server.listen(port, () => console.log("Starting Server. Listening on Port", port));
+
+app.use(bodyParser.json());
+app.use(function(req, res, next){
+    req.player_repo = player_repo;
+    next();
+});
+app.use(allowCrossDomain);
 
 app.get('/', async function(req, res){
     res.sendFile(__dirname + '/index.html');
@@ -31,39 +38,102 @@ app.get('/socket.io/socket.io.js', async function(req, res){
     res.sendFile(__dirname + '/node_modules/socket.io-client/dist/socket.io.js');
 });
 
+app.post('/register', async (req, res)=>{
+    let pName = req.body["name"];
+    let pPass = req.body["password"];
+    req.player_repo.registerPlayer(pName, pPass, resp => {
+        res.json(resp);
+    });
+});
+
+app.post('/login', async (req, res)=>{
+    let pName = req.body["name"];
+    let pPass = req.body["password"];
+    req.player_repo.loginPlayer(pName, pPass, resp => {
+        res.json(resp);
+    });
+});
+
+app.post('/getPlayerName', async (req, res)=>{
+    let pId = req.body["playerId"];
+    req.player_repo.getPlayerData(pId, resp => {
+        res.json(resp);
+    });
+});
+
+app.get('/getActiveRooms', async (req, res) => {
+    game_rooms.findActiveRooms(data => {
+        if (!data.err){
+            res.json({ "rooms_available": data.activeRooms });
+        }
+        else{
+            res.json({ "rooms_available": null });
+        }
+    });
+});
+
 io.on('connection', socket => {
     console.log('a user connected');
+
     socket.on('disconnect', function(){
-      console.log('user disconnected');
-    });
-    io.emit("Hello", "Sockets");
-
-    socket.on("changeMessageForAll", msg => {
-        console.log("Message changed to: ", msg);
-        io.emit("Hello", msg);
-    });
-
-    socket.on("changeMessageForRoom", msg => {
-        playerRoom = rooms.getRoomName(socket.id);
-        console.log(`Message for room ${playerRoom} changed to ${msg}`);
-        io.to(playerRoom).emit("Hello", msg);
+        console.log('user disconnected');
+        game_rooms.markPlayerDisconnected(socket.id);
+        // game_rooms.removePlayerFromRoom(socket.id, data => {
+        //     if(!data.err){
+        //         io.to(data.roomId).emit("players_in_room", data.playerList);
+        //     }
+        // });
     });
 
-    socket.on("createRoom", roomName => {
-        socket.join(roomName, () => {
-            console.log(`${socket.id} created room ${roomName}`);
-            rooms.addRoom(socket.id, roomName);
-            socket.emit("players_in_room", [socket.id]);
-            io.emit("room_created", roomName);
+    socket.on("createRoom", data => {
+        game_rooms.updateActivePlayer(data.playerId, socket.id);
+        game_rooms.createNewRoom(data.roomName, data.playerId, roomId => {
+            socket.join(roomId, () => {
+                console.log(`${socket.id} created room ${data.roomName} with id ${roomId}`);
+                socket.emit("players_in_room", [socket.id]);
+                io.emit("room_created", {
+                    roomName: data.roomName,
+                    roomId: roomId
+                });
+            });
         });
     });
 
-    socket.on("joinRoom", roomName => {
-        socket.join(roomName, () => {
-            console.log(`${socket.id} joined room ${roomName}`);
-            rooms.joinRoom(socket.id, roomName);
-            player_list = rooms.getPlayersInRoom(roomName);
-            io.to(roomName).emit("players_in_room", player_list);
+    socket.on("joinRoom", data => {
+        game_rooms.updateActivePlayer(data.playerId, socket.id);
+        game_rooms.joinExistingRoomAndReturnPlayerList(data.roomId, data.playerId, result => {
+            if (result.err){
+                socket.emit("join_room_failed", result.err);
+            }
+            else{
+                socket.join(data.roomId, () => {
+                    console.log(`${socket.id} joined room ${data.roomId}`);
+                    io.to(data.roomId).emit("players_in_room", result.playerList);
+                });
+
+                if (result.canGameStart){
+                    console.log("Game can start");
+                    io.to(data.roomId).emit("game_start");
+                    setTimeout(() => startGameAndInformPlayers(data.roomId), 1000);
+                }
+            }
         });
     });
+
+    function startGameAndInformPlayers(roomId){
+        game_rooms.startNewGame(roomId, res => {
+            for(var playerId of Object.keys(res.playerCards)){
+                io.to(roomId).emit("player_card", {
+                    forPlayer: playerId,
+                    cards: res.playerCards[playerId]["firstHand"]
+                });
+            }
+            io.to(roomId).emit("bidding_raise", {
+                forPlayer: res.stander.playerId,
+                raiseTo: res.currentStand
+            });
+        });
+    }
+
+
 });

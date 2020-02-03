@@ -7,6 +7,7 @@
     "config": "^3.2.5",
     "express": "^4.17.1",
     "mongoose": "^5.8.9",
+    "monk": "^7.1.2",
     "socket.io": "^2.3.0"
   },
   "devDependencies": {},
