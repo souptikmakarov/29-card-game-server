@@ -85,7 +85,7 @@ io.on('connection', socket => {
         // });
     });
 
-    socket.on("createRoom", data => {
+    socket.on("create_room", data => {
         game_rooms.updateActivePlayer(data.playerId, socket.id);
         game_rooms.createNewRoom(data.roomName, data.playerId, roomId => {
             socket.join(roomId, () => {
@@ -99,7 +99,7 @@ io.on('connection', socket => {
         });
     });
 
-    socket.on("joinRoom", data => {
+    socket.on("join_room", data => {
         game_rooms.updateActivePlayer(data.playerId, socket.id);
         game_rooms.joinExistingRoomAndReturnPlayerList(data.roomId, data.playerId, result => {
             if (result.err){
@@ -129,11 +129,25 @@ io.on('connection', socket => {
                 });
             }
             io.to(roomId).emit("bidding_raise", {
-                forPlayer: res.stander.playerId,
-                raiseTo: res.currentStand
+                forPlayer: res.stander.playerId,    //res.raiser also works
+                raiseTo: res.raiseTo
             });
         });
     }
 
+    socket.on("player_bid", data => {
+        // Inform all of current bid
+        io.to(data.roomId).emit("bidding_update", {
+            bidder: game_rooms.getPlayerIdForSocketId(socket.id),
+            bid: data.bid
+        });
 
+        // Inform all of next bidder and expected bid
+        game_rooms.playerMadeBid(data.bid, socket.id, data.roomId, res => {
+            io.to(data.roomId).emit("bidding_raise", {
+                forPlayer: res.forPlayer,
+                raiseTo: res.raiseTo
+            });
+        });
+    });
 });

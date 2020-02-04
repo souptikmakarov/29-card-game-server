@@ -14,13 +14,16 @@ class NewGameRoom{
         this._activePlayers[playerId] = socketId;
     }
 
-    markPlayerDisconnected(socketId){
+    getPlayerIdForSocketId(socketId){
         for(var p in this._activePlayers){
             if (this._activePlayers[p] == socketId){
-                this._activePlayers[p] = null;
-                break;
+                return p;
             }
         }
+    }
+
+    markPlayerDisconnected(socketId){
+        this._activePlayers[getPlayerIdForSocketId(socketId)] = null;
     }
 
     createNewRoom(roomName, adminId, callback){
@@ -183,14 +186,17 @@ class NewGameRoom{
 
 
     startNewGameSession(roomId, callback){
-        let roomDeck = models.Deck();
         let currRoom = this._activeRooms[roomId];
-        currRoom.deck = roomDeck;
         currRoom.bid_starter = 10;
+
+        let roomDeck = models.Deck();
+        currRoom.deck = roomDeck;
 
         let newGame = models.Game();
         newGame.stander = this.getPlayer(currRoom, currRoom.bid_starter);
-        newGame.raiser = this.getPlayer(currRoom, getNextPlayer(currRoom.bid_starter));
+        newGame.raiser = newGame.stander;
+        // newGame.stander;                     This is to make player as opening bidder
+        // this.getPlayer(currRoom, getNextPlayer(currRoom.bid_starter));
 
         for(var i of [10, 20, 11, 21]){
             newGame._playerCards[this.getPlayer(currRoom, i)] = {};
@@ -199,48 +205,102 @@ class NewGameRoom{
         for(var i of [10, 20, 11, 21]){
             newGame._playerCards[this.getPlayer(currRoom, i)]["secondHand"] = currRoom.deck._cards.splice(0,4);
         }
-
         currRoom.curr_game = newGame;
 
         callback({
             playerCards: newGame._playerCards,
             stander: newGame.stander,
             raiser: newGame.raiser,
-            currentStand: newGame.currentStand
+            raiseTo: newGame.currentStand + 1
         });
+    }
+
+    playerMadeBid(bid, socketId, roomId, callback){
+        let currRoom = this._activeRooms[roomId];
+        let bidding_player = this.getPlayerIdForSocketId(socketId);
+        let bidder_pos = this.getPlayerPos(bidding_player);
+        if (bid == 0){          //Player passes
+            if (currRoom.curr_game.stander == currRoom.curr_game.raiser){                   //If player is opening bidder
+                currRoom.curr_game.raiser = this.getPlayer(currRoom, getNextPlayer(bidder_pos));
+                currRoom.curr_game.stander = currRoom.curr_game.raiser;                     //Next player becomes opening bidder
+                //raiseTo: currentStand + 1
+                //forPlayer: raiser
+            }
+            else{
+                if (bidding_player == currRoom.curr_game.stander){
+                    currRoom.curr_game.stander = currRoom.curr_game.raiser;
+                    currRoom.curr_game.raiser = this.getPlayer(currRoom, getNextPlayer(currRoom.curr_game.stander));
+                    //raiseTo: currentStand + 1
+                    //forPlayer: raiser
+                }
+                else{
+                    currRoom.curr_game.raiser = this.getPlayer(currRoom, getNextPlayer(currRoom.curr_game.raiser));
+                    //raiseTo: currentStand + 1
+                    //forPlayer: raiser
+                }
+            }
+            callback({
+                raiseTo: currRoom.curr_game.currentStand,
+                forPlayer: currRoom.curr_game.raiser
+            });
+        }
+        else {                  //Player bids
+            currRoom.curr_game.currentStand = bid;
+            if (currRoom.curr_game.stander == currRoom.curr_game.raiser){                   //If player is opening bidder
+                currRoom.curr_game.raiser = this.getPlayer(currRoom, getNextPlayer(bidder_pos));
+                callback({
+                    raiseTo: currRoom.curr_game.currentStand + 1,
+                    forPlayer: currRoom.curr_game.raiser
+                });
+            }
+            else{
+                if (bidding_player == currRoom.curr_game.stander){                          //Stander accepts raise and ask for further raise
+                    callback({
+                        raiseTo: currRoom.curr_game.currentStand + 1,
+                        forPlayer: currRoom.curr_game.raiser
+                    });
+                }
+                else{                                                                       //Raiser raises and ask stander to accept
+                    callback({
+                        raiseTo: currRoom.curr_game.currentStand,
+                        forPlayer: currRoom.curr_game.stander
+                    });
+                }
+            }
+        }
+
+    }
+
+    getPlayerPos(roomObj, playerId){
+        if (playerId == roomObj.pair_1[0])
+            return 10;
+        else if (playerId == roomObj.pair_1[1])
+            return 11;
+        else if (playerId == roomObj.pair_2[0])
+            return 20;
+        else if (playerId == roomObj.pair_2[1])
+            return 21;
     }
 
     getPlayer(roomObj, playerPos){
         if (playerPos == 10)
-            return {
-                playerId: roomObj.pair_1[0],
-                pos: 10
-            }
+            return roomObj.pair_1[0];
         else if (playerPos == 20)
-            return {
-                playerId: roomObj.pair_2[0],
-                pos: 20
-            }
+            return roomObj.pair_2[0];
         else if (playerPos == 11)
-            return {
-                playerId: roomObj.pair_1[1],
-                pos: 11
-            }
+            return roomObj.pair_1[1];
         else if (playerPos == 21)
-            return {
-                playerId: roomObj.pair_2[1],
-                pos: 21
-            }
+            return roomObj.pair_2[1];
     }
 
-    getNextPlayer(){
-        if (bid_starter == 10)
+    getNextPlayer(player_pos){
+        if (player_pos == 10)
             return 20;
-        else if (bid_starter == 20)
+        else if (player_pos == 20)
             return 11;
-        else if (bid_starter == 11)
+        else if (player_pos == 11)
             return 21;
-        else if (bid_starter == 21)
+        else if (player_pos == 21)
             return 10;
     }
 }
