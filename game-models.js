@@ -259,7 +259,7 @@ class Deck{
     }
 
     firstShuffle(){
-        for (i = 0; i < 10; i++){
+        for (var i = 0; i < 10; i++){
             let cutStart = Math.floor(Math.random() * 10);
             let cutEnd = Math.floor(Math.random() * (32 - 25) + 25);
             let part_deck = this._cards.splice(cutStart, cutEnd);
@@ -268,7 +268,7 @@ class Deck{
     }
 
     shuffle(){
-        for (i = 0; i < 3; i++){
+        for (var i = 0; i < 3; i++){
             let cutStart = Math.floor(Math.random() * (18 - 10) + 10);
             let cutEnd = Math.floor(Math.random() * (32 - 25) + 25);
             let part_deck = this._cards.splice(cutStart, cutEnd);

@@ -23,7 +23,9 @@ class NewGameRoom{
     }
 
     markPlayerDisconnected(socketId){
-        this._activePlayers[getPlayerIdForSocketId(socketId)] = null;
+        let pl = this.getPlayerIdForSocketId(socketId);
+        if (pl)
+            this._activePlayers[pl] = null;
     }
 
     createNewRoom(roomName, adminId, callback){
@@ -48,59 +50,66 @@ class NewGameRoom{
     }
 
     joinExistingRoomAndReturnPlayerList(roomId, playerId, callback){
-        let session_col = this._db.get(SESSION);
-        session_col.findOne({ _id: monk.id(roomId) }, (err, doc) => {
-            let playerList = null;
-            let canGameStart = false;
-            if (!doc){
-                callback({
-                    err: "Room not found",
-                    playerList: playerList,
-                    canGameStart: canGameStart
-                });
-                return;
-            }
-            if (doc.pair_1.length === 1){
-                doc.pair_1.push(playerId);
-                playerList = doc.pair_1;
-            }
-            else if(doc.pair_2.length < 2){
-                doc.pair_2.push(playerId);
-                playerList = doc.pair_1.concat(doc.pair_2);
-
-                if (doc.pair_1.length == 2 && doc.pair_2.length == 2)
-                    canGameStart = true;
-            }
-            else{
-                if (!(doc.pair_1.includes(playerId) || doc.pair_2.includes(playerId))){
-                    callback({
-                        err: "Room is already full",
-                        playerList: playerList,
-                        canGameStart: canGameStart
-                    });
-                    return;
-                }
-            }
-
-            let activeRoom = this._activeRooms[roomId];
-            activeRoom.pair_1 = doc.pair_1;
-            activeRoom.pair_2 = doc.pair_2;
-             
-            session_col.findOneAndUpdate({ _id: monk.id(roomId) }, { $set: doc }, (err, updatedDoc) => {
-                if (updatedDoc)
-                    callback({
-                        err: null,
-                        playerList: playerList,
-                        canGameStart: canGameStart
-                    });
-                else
+        let activeRoom = this._activeRooms[roomId];
+        if (activeRoom){
+            let session_col = this._db.get(SESSION);
+            session_col.findOne({ _id: monk.id(roomId) }, (err, doc) => {
+                let playerList = null;
+                let canGameStart = false;
+                if (!doc){
                     callback({
                         err: "Room not found",
                         playerList: playerList,
                         canGameStart: canGameStart
                     });
+                    return;
+                }
+                if (doc.pair_1.length === 1){
+                    doc.pair_1.push(playerId);
+                    playerList = doc.pair_1;
+                }
+                else if(doc.pair_2.length < 2){
+                    doc.pair_2.push(playerId);
+                    playerList = doc.pair_1.concat(doc.pair_2);
+
+                    if (doc.pair_1.length == 2 && doc.pair_2.length == 2)
+                        canGameStart = true;
+                }
+                else{
+                    if (!(doc.pair_1.includes(playerId) || doc.pair_2.includes(playerId))){
+                        callback({
+                            err: "Room is already full",
+                            playerList: playerList,
+                            canGameStart: canGameStart
+                        });
+                        return;
+                    }
+                }
+                activeRoom.pair_1 = doc.pair_1;
+                activeRoom.pair_2 = doc.pair_2;
+                
+                session_col.findOneAndUpdate({ _id: monk.id(roomId) }, { $set: doc }, (err, updatedDoc) => {
+                    if (updatedDoc)
+                        callback({
+                            err: null,
+                            playerList: playerList,
+                            canGameStart: canGameStart
+                        });
+                    else
+                        callback({
+                            err: "Room not found",
+                            playerList: playerList,
+                            canGameStart: canGameStart
+                        });
+                });
             });
-        });
+        }
+        else
+            callback({
+                err: "Room not found",
+                playerList: null,
+                canGameStart: false
+            });
     }
 
     removePlayerFromRoom(playerId, callback){
@@ -164,16 +173,23 @@ class NewGameRoom{
         (err, docs) => {
             if (docs.length > 0){
                 let activeRooms = [];
+                let inactiveRooms = [];
                 docs.forEach(doc => {
-                    activeRooms.push({
-                        roomName: doc._roomName,
-                        roomId: doc._id
-                    });
+                    if (this._activeRooms[doc._id])
+                        activeRooms.push({
+                            roomName: doc._roomName,
+                            roomId: doc._id
+                        });
+                    else
+                        inactiveRooms.push(doc._id);
                 });
                 callback({
                     err: null,
                     activeRooms: activeRooms
                 });
+                for (var roomId of inactiveRooms){
+                    session_col.remove({_id: roomId});
+                }
             }
             else{
                 callback({
@@ -189,13 +205,13 @@ class NewGameRoom{
         let currRoom = this._activeRooms[roomId];
         currRoom.bid_starter = 10;
 
-        let roomDeck = models.Deck();
+        let roomDeck = new models.Deck();
         currRoom.deck = roomDeck;
 
-        let newGame = models.Game();
+        let newGame = new models.Game();
         newGame.stander = this.getPlayer(currRoom, currRoom.bid_starter);
         newGame.raiser = newGame.stander;
-        // newGame.stander;                     This is to make player as opening bidder
+        // newGame.stander;                     //This is to make player as opening bidder
         // this.getPlayer(currRoom, getNextPlayer(currRoom.bid_starter));
 
         for(var i of [10, 20, 11, 21]){
@@ -205,6 +221,8 @@ class NewGameRoom{
         for(var i of [10, 20, 11, 21]){
             newGame._playerCards[this.getPlayer(currRoom, i)]["secondHand"] = currRoom.deck._cards.splice(0,4);
         }
+        console.log(newGame._playerCards[this.getPlayer(currRoom, i)]["firstHand"].length, 
+            newGame._playerCards[this.getPlayer(currRoom, i)]["secondHand"].length);
         currRoom.curr_game = newGame;
 
         callback({
@@ -218,10 +236,10 @@ class NewGameRoom{
     playerMadeBid(bid, socketId, roomId, callback){
         let currRoom = this._activeRooms[roomId];
         let bidding_player = this.getPlayerIdForSocketId(socketId);
-        let bidder_pos = this.getPlayerPos(bidding_player);
+        let bidder_pos = this.getPlayerPos(currRoom, bidding_player);
         if (bid == 0){          //Player passes
             if (currRoom.curr_game.stander == currRoom.curr_game.raiser){                   //If player is opening bidder
-                currRoom.curr_game.raiser = this.getPlayer(currRoom, getNextPlayer(bidder_pos));
+                currRoom.curr_game.raiser = this.getPlayer(currRoom, this.getNextPlayer(bidder_pos));
                 currRoom.curr_game.stander = currRoom.curr_game.raiser;                     //Next player becomes opening bidder
                 //raiseTo: currentStand + 1
                 //forPlayer: raiser
@@ -229,25 +247,25 @@ class NewGameRoom{
             else{
                 if (bidding_player == currRoom.curr_game.stander){
                     currRoom.curr_game.stander = currRoom.curr_game.raiser;
-                    currRoom.curr_game.raiser = this.getPlayer(currRoom, getNextPlayer(currRoom.curr_game.stander));
+                    currRoom.curr_game.raiser = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.stander)));
                     //raiseTo: currentStand + 1
                     //forPlayer: raiser
                 }
                 else{
-                    currRoom.curr_game.raiser = this.getPlayer(currRoom, getNextPlayer(currRoom.curr_game.raiser));
+                    currRoom.curr_game.raiser = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.raiser)));
                     //raiseTo: currentStand + 1
                     //forPlayer: raiser
                 }
             }
             callback({
-                raiseTo: currRoom.curr_game.currentStand,
+                raiseTo: currRoom.curr_game.currentStand + 1,
                 forPlayer: currRoom.curr_game.raiser
             });
         }
         else {                  //Player bids
             currRoom.curr_game.currentStand = bid;
             if (currRoom.curr_game.stander == currRoom.curr_game.raiser){                   //If player is opening bidder
-                currRoom.curr_game.raiser = this.getPlayer(currRoom, getNextPlayer(bidder_pos));
+                currRoom.curr_game.raiser = this.getPlayer(currRoom, this.getNextPlayer(bidder_pos));
                 callback({
                     raiseTo: currRoom.curr_game.currentStand + 1,
                     forPlayer: currRoom.curr_game.raiser
@@ -268,7 +286,6 @@ class NewGameRoom{
                 }
             }
         }
-
     }
 
     getPlayerPos(roomObj, playerId){

@@ -75,8 +75,13 @@ app.get('/getActiveRooms', async (req, res) => {
 io.on('connection', socket => {
     console.log('a user connected');
 
-    socket.on('disconnect', function(){
-        console.log('user disconnected');
+    socket.on("player_reconnect", playerId => {
+        console.log("user reconnected " + playerId);
+        game_rooms.updateActivePlayer(playerId, socket.id);
+    });
+
+    socket.on('disconnect', function(reason){
+        console.log('user disconnected ' + reason);
         game_rooms.markPlayerDisconnected(socket.id);
         // game_rooms.removePlayerFromRoom(socket.id, data => {
         //     if(!data.err){
@@ -109,19 +114,23 @@ io.on('connection', socket => {
                 socket.join(data.roomId, () => {
                     console.log(`${socket.id} joined room ${data.roomId}`);
                     io.to(data.roomId).emit("players_in_room", result.playerList);
+                    
+                    if (result.canGameStart){
+                        console.log("Game can start");
+                        setTimeout(() => startGameAndInformPlayers(data.roomId), 1000);
+                    }
                 });
-
-                if (result.canGameStart){
-                    console.log("Game can start");
-                    io.to(data.roomId).emit("game_start");
-                    setTimeout(() => startGameAndInformPlayers(data.roomId), 1000);
-                }
             }
         });
     });
 
     function startGameAndInformPlayers(roomId){
-        game_rooms.startNewGame(roomId, res => {
+        io.to(roomId).emit("game_start");
+        setTimeout(() => dealCardsAndStartBidding(roomId), 1000);
+    }
+
+    function dealCardsAndStartBidding(roomId){
+        game_rooms.startNewGameSession(roomId, res => {
             for(var playerId of Object.keys(res.playerCards)){
                 io.to(roomId).emit("player_card", {
                     forPlayer: playerId,
@@ -129,7 +138,7 @@ io.on('connection', socket => {
                 });
             }
             io.to(roomId).emit("bidding_raise", {
-                forPlayer: res.stander.playerId,    //res.raiser also works
+                forPlayer: res.stander,    //res.raiser also works
                 raiseTo: res.raiseTo
             });
         });
