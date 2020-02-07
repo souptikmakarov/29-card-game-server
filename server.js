@@ -1,13 +1,15 @@
 const config = require('config');
 var NewGameRoom = require('./game-server');
 var PlayerRepo = require('./player-repo');
-var app = require('express')();
+const express = require('express');
+const path = require('path');
+var app = express();
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
 var bodyParser = require('body-parser');
 var monk = require('monk');
 
-var port = config.get('appPort');
+var port = config.get('appPort') || process.env.PORT;
 var mongoURL = config.get('db_conn_url');
 const db = monk(mongoURL);
 
@@ -30,12 +32,11 @@ app.use(function(req, res, next){
 });
 app.use(allowCrossDomain);
 
-app.get('/', async function(req, res){
-    res.sendFile(__dirname + '/index.html');
-});
+// Serve only the static files form the dist directory
+app.use(express.static(__dirname + '/game-client'));
 
-app.get('/socket.io/socket.io.js', async function(req, res){
-    res.sendFile(__dirname + '/node_modules/socket.io-client/dist/socket.io.js');
+app.get('/', function(req,res) {
+    res.sendFile(path.join(__dirname+'/game-client/index.html'));
 });
 
 app.post('/register', async (req, res)=>{

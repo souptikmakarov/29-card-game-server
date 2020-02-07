@@ -1,0 +1,5 @@
+{
+    "node_env" : "production",
+    "appPort" : "3000",
+    "db_conn_url" : "mongodb://makarov:makarov29@ds263295.mlab.com:63295/twentynine-card-game"    
+}

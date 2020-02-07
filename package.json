@@ -6,14 +6,13 @@
   "dependencies": {
     "config": "^3.2.5",
     "express": "^4.17.1",
-    "mongoose": "^5.8.9",
     "monk": "^7.1.2",
     "socket.io": "^2.3.0"
   },
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "mpn start"
   },
   "author": "Makarov",
   "license": "ISC"
