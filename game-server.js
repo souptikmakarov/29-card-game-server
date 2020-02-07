@@ -254,14 +254,25 @@ class NewGameRoom{
                 else{
                     let nextPlayer = this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.raiser));
                     if (nextPlayer == 10){                                                  //Last player passes
-                        currRoom.curr_game.bid = currRoom.curr_game.currentStand;
-                        currRoom.curr_game.bidding_player = currRoom.curr_game.stander;
-                        callback({
-                            finalBid: currRoom.curr_game.bid,
-                            bidding_player: currRoom.curr_game.bidding_player,
-                            biddingComplete: false
-                        });
-                        return;
+                        if (currRoom.curr_game.currentStand == 15){                         // No one made bid
+                            callback({
+                                finalBid: currRoom.curr_game.bid,
+                                bidding_player: currRoom.curr_game.bidding_player,
+                                biddingComplete: true,
+                                gameCancelled: true
+                            });
+                        }
+                        else{                                                               // Someone bid
+                            currRoom.curr_game.bid = currRoom.curr_game.currentStand;
+                            currRoom.curr_game.bidding_player = currRoom.curr_game.stander;
+                            callback({
+                                finalBid: currRoom.curr_game.bid,
+                                bidding_player: currRoom.curr_game.bidding_player,
+                                biddingComplete: true,
+                                gameCancelled: false
+                            });
+                            return;
+                        }
                     }
                     else
                         currRoom.curr_game.raiser = this.getPlayer(currRoom, nextPlayer);
@@ -287,11 +298,23 @@ class NewGameRoom{
             }
             else{
                 if (bidding_player == currRoom.curr_game.stander){                          //Stander accepts raise and ask for further raise
-                    callback({
-                        raiseTo: currRoom.curr_game.currentStand + 1,
-                        forPlayer: currRoom.curr_game.raiser,
-                        biddingComplete: false
-                    });
+                    if (currRoom.curr_game.currentStand == 28){                             //Bid reaches 28
+                        currRoom.curr_game.bid = currRoom.curr_game.currentStand;
+                        currRoom.curr_game.bidding_player = currRoom.curr_game.stander;
+                        callback({
+                            finalBid: currRoom.curr_game.bid,
+                            bidding_player: currRoom.curr_game.bidding_player,
+                            biddingComplete: true,
+                            gameCancelled: false
+                        });
+                        return;
+                    }
+                    else
+                        callback({
+                            raiseTo: currRoom.curr_game.currentStand + 1,
+                            forPlayer: currRoom.curr_game.raiser,
+                            biddingComplete: false
+                        });
                 }
                 else{                                                                       //Raiser raises and ask stander to accept
                     callback({

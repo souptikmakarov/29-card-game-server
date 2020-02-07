@@ -154,15 +154,20 @@ io.on('connection', socket => {
 
         // Inform all of next bidder and expected bid
         game_rooms.playerMadeBid(data.bid, socket.id, data.roomId, res => {
-            if (!res.biddingComplete)
+            if (res.biddingComplete){
+                if (res.gameCancelled){
+
+                }
+                else    
+                    io.to(data.roomId).emit("bidding_complete", {
+                        bidding_player: res.bidding_player,
+                        finalBid: res.finalBid
+                    });
+            }
+            else{
                 io.to(data.roomId).emit("bidding_raise", {
                     forPlayer: res.forPlayer,
                     raiseTo: res.raiseTo
-                });
-            else{
-                io.to(data.roomId).emit("bidding_complete", {
-                    bidding_player: res.bidding_player,
-                    finalBid: res.finalBid
                 });
             }
         });
