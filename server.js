@@ -76,9 +76,12 @@ app.get('/getActiveRooms', async (req, res) => {
 io.on('connection', socket => {
     console.log('a user connected');
 
-    socket.on("player_reconnect", playerId => {
+    socket.on("player_reconnect", data => {
         console.log("user reconnected " + playerId);
-        game_rooms.updateActivePlayer(playerId, socket.id);
+        game_rooms.updateActivePlayer(data.playerId, socket.id);
+        socket.join(data.roomId, () => {
+
+        });
     });
 
     socket.on('disconnect', function(reason){

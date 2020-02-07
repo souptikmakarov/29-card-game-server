@@ -217,7 +217,6 @@ class NewGameRoom {
             });
     }
 
-
     startNewGameSession(roomId, callback) {
         let currRoom = this._activeRooms[roomId];
         currRoom.bid_starter = 10;
