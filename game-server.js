@@ -252,14 +252,27 @@ class NewGameRoom{
                     //forPlayer: raiser
                 }
                 else{
-                    currRoom.curr_game.raiser = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.raiser)));
+                    let nextPlayer = this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.raiser));
+                    if (nextPlayer == 10){                                                  //Last player passes
+                        currRoom.curr_game.bid = currRoom.curr_game.currentStand;
+                        currRoom.curr_game.bidding_player = currRoom.curr_game.stander;
+                        callback({
+                            finalBid: currRoom.curr_game.bid,
+                            bidding_player: currRoom.curr_game.bidding_player,
+                            biddingComplete: false
+                        });
+                        return;
+                    }
+                    else
+                        currRoom.curr_game.raiser = this.getPlayer(currRoom, nextPlayer);
                     //raiseTo: currentStand + 1
                     //forPlayer: raiser
                 }
             }
             callback({
                 raiseTo: currRoom.curr_game.currentStand + 1,
-                forPlayer: currRoom.curr_game.raiser
+                forPlayer: currRoom.curr_game.raiser,
+                biddingComplete: false
             });
         }
         else {                  //Player bids
@@ -268,20 +281,23 @@ class NewGameRoom{
                 currRoom.curr_game.raiser = this.getPlayer(currRoom, this.getNextPlayer(bidder_pos));
                 callback({
                     raiseTo: currRoom.curr_game.currentStand + 1,
-                    forPlayer: currRoom.curr_game.raiser
+                    forPlayer: currRoom.curr_game.raiser,
+                    biddingComplete: false
                 });
             }
             else{
                 if (bidding_player == currRoom.curr_game.stander){                          //Stander accepts raise and ask for further raise
                     callback({
                         raiseTo: currRoom.curr_game.currentStand + 1,
-                        forPlayer: currRoom.curr_game.raiser
+                        forPlayer: currRoom.curr_game.raiser,
+                        biddingComplete: false
                     });
                 }
                 else{                                                                       //Raiser raises and ask stander to accept
                     callback({
                         raiseTo: currRoom.curr_game.currentStand,
-                        forPlayer: currRoom.curr_game.stander
+                        forPlayer: currRoom.curr_game.stander,
+                        biddingComplete: false
                     });
                 }
             }
