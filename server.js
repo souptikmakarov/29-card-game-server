@@ -9,7 +9,7 @@ var io = require('socket.io')(server);
 var bodyParser = require('body-parser');
 var monk = require('monk');
 
-var port = config.get('appPort') || process.env.PORT;
+var port = process.env.PORT || config.get('appPort');
 var mongoURL = config.get('db_conn_url');
 const db = monk(mongoURL);
 
