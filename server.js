@@ -77,7 +77,7 @@ io.on('connection', socket => {
     console.log('a user connected');
 
     socket.on("player_reconnect", data => {
-        console.log("user reconnected " + playerId);
+        console.log("user reconnected " + data.playerId);
         game_rooms.updateActivePlayer(data.playerId, socket.id);
         socket.join(data.roomId, () => {
 
