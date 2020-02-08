@@ -98,14 +98,22 @@ class NewGameRoom {
                     }
                 }
                 else {
-                    if (!(doc.pair_1.includes(playerId) || doc.pair_2.includes(playerId))) {
-                        callback({
-                            err: "Room is already full",
-                            playerList: playerList,
-                            canGameStart: canGameStart
-                        });
-                        return;
-                    }
+                    // if (!(doc.pair_1.includes(playerId) || doc.pair_2.includes(playerId))) {
+                    callback({
+                        err: "Room is already full",
+                        playerList: playerList,
+                        canGameStart: canGameStart
+                    });
+                    return;
+                    // }
+                    // else{
+                    //     callback({
+                    //         err: null,
+                    //         playerList: doc.pair_1.concat(doc.pair_2),
+                    //         canGameStart: false
+                    //     });
+                    //     return;
+                    // }
                 }
 
                 if (isUpdateReq) {

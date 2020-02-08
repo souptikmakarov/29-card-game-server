@@ -81,8 +81,10 @@ io.on('connection', socket => {
         game_rooms.updateActivePlayerAndJoinRoom(data.playerId, socket.id, data.roomId, canJoinRoom => {
             if (canJoinRoom)
                 socket.join(data.roomId, () => {
-                    console.log(`${socket.id} joined room ${data.roomId}`);
+                    console.log(`${data.playerId} joined room ${data.roomId}`);
                 });
+            else
+                socket.emit("room_invalid", null);
         });
     });
 
@@ -100,7 +102,7 @@ io.on('connection', socket => {
         game_rooms.updateActivePlayer(data.playerId, socket.id);
         game_rooms.createNewRoom(data.roomName, data.playerId, roomId => {
             socket.join(roomId, () => {
-                console.log(`${socket.id} created room ${data.roomName} with id ${roomId}`);
+                console.log(`${data.playerId} created room ${data.roomName} with id ${roomId}`);
                 socket.emit("players_in_room", [socket.id]);
                 io.emit("room_created", {
                     roomName: data.roomName,
@@ -118,7 +120,7 @@ io.on('connection', socket => {
             }
             else{
                 socket.join(data.roomId, () => {
-                    console.log(`${socket.id} joined room ${data.roomId}`);
+                    console.log(`${data.playerId} joined room ${data.roomId}`);
                     io.to(data.roomId).emit("players_in_room", result.playerList);
                     
                     if (result.canGameStart){
