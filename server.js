@@ -78,9 +78,11 @@ io.on('connection', socket => {
 
     socket.on("player_reconnect", data => {
         console.log("user reconnected " + data.playerId);
-        game_rooms.updateActivePlayer(data.playerId, socket.id);
-        socket.join(data.roomId, () => {
-            console.log(`${socket.id} joined room ${data.roomId}`);
+        game_rooms.updateActivePlayerAndJoinRoom(data.playerId, socket.id, data.roomId, canJoinRoom => {
+            if (canJoinRoom)
+                socket.join(data.roomId, () => {
+                    console.log(`${socket.id} joined room ${data.roomId}`);
+                });
         });
     });
 

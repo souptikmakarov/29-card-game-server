@@ -14,6 +14,21 @@ class NewGameRoom {
         this._activePlayers[playerId] = socketId;
     }
 
+    updateActivePlayerAndJoinRoom(playerId, socketId, roomId, callback){
+        this.updateActivePlayer(playerId, socketId);
+        this.findActiveRooms(res => {
+            if (!res.err && res.activeRooms.find(room => room.roomId == roomId)){
+                let lastRoom = this._activeRooms[roomId];
+                if (lastRoom){
+                    if (lastRoom.pair_1.indexOf(playerId) != -1 || lastRoom.pair_2.indexOf(playerId) != -1){
+                        callback(true);
+                    }
+                }
+            }
+            callback(false);
+        })
+    }
+
     getPlayerIdForSocketId(socketId) {
         for (var p in this._activePlayers) {
             if (this._activePlayers[p] == socketId) {
