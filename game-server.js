@@ -245,6 +245,7 @@ class NewGameRoom {
         currRoom.bid_starter = 10;
 
         let roomDeck = new models.Deck();
+        roomDeck.firstShuffle();
         currRoom.deck = roomDeck;
 
         let newGame = new models.Game();
@@ -260,8 +261,6 @@ class NewGameRoom {
         for (var i of [10, 20, 11, 21]) {
             newGame._playerCards[this.getPlayer(currRoom, i)]["secondHand"] = currRoom.deck._cards.splice(0, 4);
         }
-        console.log(newGame._playerCards[this.getPlayer(currRoom, i)]["firstHand"].length,
-            newGame._playerCards[this.getPlayer(currRoom, i)]["secondHand"].length);
         currRoom.curr_game = newGame;
 
         callback({
@@ -286,7 +285,30 @@ class NewGameRoom {
             else {
                 if (bidding_player == currRoom.curr_game.stander) {
                     currRoom.curr_game.stander = currRoom.curr_game.raiser;
-                    currRoom.curr_game.raiser = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.stander)));
+                    let nextPlayer = this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.stander));
+                    if (nextPlayer == 10) {                                                  //Last player passes
+                        if (currRoom.curr_game.currentStand == 15) {                         // No one made bid
+                            callback({
+                                finalBid: currRoom.curr_game.bid,
+                                bidding_player: currRoom.curr_game.bidding_player,
+                                biddingComplete: true,
+                                gameCancelled: true
+                            });
+                        }
+                        else {                                                               // Someone bid
+                            currRoom.curr_game.bid = currRoom.curr_game.currentStand;
+                            currRoom.curr_game.bidding_player = currRoom.curr_game.stander;
+                            callback({
+                                finalBid: currRoom.curr_game.bid,
+                                bidding_player: currRoom.curr_game.bidding_player,
+                                biddingComplete: true,
+                                gameCancelled: false
+                            });
+                            return;
+                        }
+                    }
+                    else
+                        currRoom.curr_game.raiser = this.getPlayer(currRoom, nextPlayer);
                     //raiseTo: currentStand + 1
                     //forPlayer: raiser
                 }
@@ -363,6 +385,53 @@ class NewGameRoom {
                     });
                 }
             }
+        }
+    }
+
+    playerSetTrump(roomId, trump, callback){
+        let currRoom = this._activeRooms[roomId];
+        if (currRoom){
+            let currGame = currRoom.curr_game;
+            currGame.trump = trump;
+            currGame.priority_deck = new models.Deck();
+            if (trump == "seventh"){
+                let trumpSuit = currRoom.curr_game._playerCards[currRoom.curr_game.bidding_player]["secondHand"][2].suit;
+                if (trumpSuit == "S")
+                    currGame.trump = "spades";
+                else if (trumpSuit == "H")
+                    currGame.trump = "hearts";
+                else if (trumpSuit == "C")
+                    currGame.trump = "clubs";
+                else if (trumpSuit == "D")
+                    currGame.trump = "diamonds";
+            }
+            currRoom.curr_game.hand_starter = this.getPlayer(currRoom, currRoom.bid_starter);
+            callback({
+                playerCards: currRoom.curr_game._playerCards,
+                starter: currRoom.curr_game.hand_starter
+            });
+        }
+    }
+
+    playerDealtCard(roomId, card, playerId, callback){
+        let currRoom = this._activeRooms[roomId];
+        if (currRoom){
+            let currHand = null;
+            if (playerId == currRoom.curr_game.hand_starter){
+                currHand = new models.Hand();
+                currHand.starting_player = playerId;
+                currHand.cards.push(card);
+            }
+            else{
+                currRoom.curr_game.curr_hand.cards.push(card);
+
+                if (currRoom.curr_game.curr_hand.cards.length == 4){                             // 4 needs to change for single
+                    currRoom.curr_game.curr_hand = currHand;
+                    callback(null);
+                }
+            }
+            let nextPlayer = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, playerId)));
+            callback(nextPlayer);
         }
     }
 

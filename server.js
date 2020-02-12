@@ -163,7 +163,7 @@ io.on('connection', socket => {
         game_rooms.playerMadeBid(data.bid, socket.id, data.roomId, res => {
             if (res.biddingComplete){
                 if (res.gameCancelled){
-
+                    // TODO:: Write logic to restart game and ask player for bid
                 }
                 else    
                     io.to(data.roomId).emit("bidding_complete", {
@@ -177,6 +177,31 @@ io.on('connection', socket => {
                     raiseTo: res.raiseTo
                 });
             }
+        });
+    });
+
+    socket.on("set_trump", data => {
+        game_rooms.playerSetTrump(data.roomId, data.trump, res => {
+            for(var playerId of Object.keys(res.playerCards)){
+                io.to(data.roomId).emit("player_card", {
+                    forPlayer: playerId,
+                    cards: res.playerCards[playerId]["secondHand"]
+                });
+            }
+            io.to(data.roomId).emit("play_card", res.starter);
+        });
+    });
+
+    socket.on("deal_card", data => {
+        game_rooms.playerDealtCard(data.roomId, data.card, data.playerId, nextPlayer => {
+            socket.to(data.roomId).emit("player_dealt_card", {
+                playerId: data.playerId,
+                suit: data.card.suit,
+                rank: data.card.rank
+            });
+            setTimeout(()=>{
+                io.to(data.roomId).emit("play_card", nextPlayer);
+            }, 500);
         });
     });
 });
