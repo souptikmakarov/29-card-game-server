@@ -416,20 +416,21 @@ class NewGameRoom {
     playerDealtCard(roomId, card, playerId, callback){
         let currRoom = this._activeRooms[roomId];
         if (currRoom){
-            let currHand = null;
             if (playerId == currRoom.curr_game.hand_starter){
-                currHand = new models.Hand();
+                let currHand = new models.Hand();
                 currHand.starting_player = playerId;
                 currHand.cards.push(card);
+                currRoom.curr_game.curr_hand = currHand;
             }
             else{
                 currRoom.curr_game.curr_hand.cards.push(card);
 
                 if (currRoom.curr_game.curr_hand.cards.length == 4){                             // 4 needs to change for single
-                    currRoom.curr_game.curr_hand = currHand;
+                    currRoom.curr_game.hands_played.push(currRoom.curr_game.curr_hand);
                     callback(null);
                 }
             }
+            currRoom.curr_game.
             let nextPlayer = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, playerId)));
             callback(nextPlayer);
         }
