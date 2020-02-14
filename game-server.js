@@ -430,7 +430,6 @@ class NewGameRoom {
                     callback(null);
                 }
             }
-            currRoom.curr_game.
             let nextPlayer = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, playerId)));
             callback(nextPlayer);
         }
