@@ -2,6 +2,14 @@ var models = require('./game-models');
 var monk = require('monk');
 const SESSION = "session";
 
+const TRUMP_HEARTS = "hearts";
+const TRUMP_DIAMONDS = "diamonds";
+const TRUMP_CLUBS = "clubs";
+const TRUMP_SPADES = "spades";
+const TRUMP_JOKER = "joker";
+const TRUMP_GUARANTEE = "guarantee";
+const TRUMP_SEVENTH = "seventh";
+
 class NewGameRoom {
     constructor(db, player_repo) {
         this._db = db;
@@ -240,6 +248,11 @@ class NewGameRoom {
             });
     }
 
+    getPlayersInRoom(roomId, callback){
+        let currRoom = this._activeRooms[roomId];
+        callback([currRoom.pair_1[0], currRoom.pair_1[1], currRoom.pair_2[0], currRoom.pair_2[1]]);
+    }
+
     startNewGameSession(roomId, callback) {
         let currRoom = this._activeRooms[roomId];
         currRoom.bid_starter = 10;
@@ -251,8 +264,6 @@ class NewGameRoom {
         let newGame = new models.Game();
         newGame.stander = this.getPlayer(currRoom, currRoom.bid_starter);
         newGame.raiser = newGame.stander;
-        // newGame.stander;                     //This is to make player as opening bidder
-        // this.getPlayer(currRoom, getNextPlayer(currRoom.bid_starter));
 
         for (var i of [10, 20, 11, 21]) {
             newGame._playerCards[this.getPlayer(currRoom, i)] = {};
@@ -285,8 +296,8 @@ class NewGameRoom {
             else {
                 if (bidding_player == currRoom.curr_game.stander) {
                     currRoom.curr_game.stander = currRoom.curr_game.raiser;
-                    let nextPlayer = this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.stander));
-                    if (nextPlayer == 10) {                                                  //Last player passes
+                    let nextPlayer = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.stander)));
+                    if (nextPlayer == this.getPlayer(currRoom, currRoom.bid_starter)) {                                                  //Last player passes
                         if (currRoom.curr_game.currentStand == 15) {                         // No one made bid
                             callback({
                                 finalBid: currRoom.curr_game.bid,
@@ -308,13 +319,13 @@ class NewGameRoom {
                         }
                     }
                     else
-                        currRoom.curr_game.raiser = this.getPlayer(currRoom, nextPlayer);
+                        currRoom.curr_game.raiser = nextPlayer;
                     //raiseTo: currentStand + 1
                     //forPlayer: raiser
                 }
                 else {
-                    let nextPlayer = this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.raiser));
-                    if (nextPlayer == 10) {                                                  //Last player passes
+                    let nextPlayer = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, currRoom.curr_game.raiser)));
+                    if (nextPlayer == this.getPlayer(currRoom, currRoom.bid_starter)) {                                                  //Last player passes
                         if (currRoom.curr_game.currentStand == 15) {                         // No one made bid
                             callback({
                                 finalBid: currRoom.curr_game.bid,
@@ -336,7 +347,7 @@ class NewGameRoom {
                         }
                     }
                     else
-                        currRoom.curr_game.raiser = this.getPlayer(currRoom, nextPlayer);
+                        currRoom.curr_game.raiser = nextPlayer;
                     //raiseTo: currentStand + 1
                     //forPlayer: raiser
                 }
@@ -394,16 +405,16 @@ class NewGameRoom {
             let currGame = currRoom.curr_game;
             currGame.trump = trump;
             currGame.priority_deck = new models.Deck();
-            if (trump == "seventh"){
+            if (trump == TRUMP_SEVENTH){
                 let trumpSuit = currRoom.curr_game._playerCards[currRoom.curr_game.bidding_player]["secondHand"][2].suit;
                 if (trumpSuit == "S")
-                    currGame.trump = "spades";
+                    currGame.trump = TRUMP_SPADES;
                 else if (trumpSuit == "H")
-                    currGame.trump = "hearts";
+                    currGame.trump = TRUMP_HEARTS;
                 else if (trumpSuit == "C")
-                    currGame.trump = "clubs";
+                    currGame.trump = TRUMP_CLUBS;
                 else if (trumpSuit == "D")
-                    currGame.trump = "diamonds";
+                    currGame.trump = TRUMP_DIAMONDS;
             }
             currRoom.curr_game.hand_starter = this.getPlayer(currRoom, currRoom.bid_starter);
             callback({
@@ -413,26 +424,168 @@ class NewGameRoom {
         }
     }
 
+    showTrump(roomId, callback){
+        let currRoom = this._activeRooms[roomId];
+        if (currRoom){
+            let currGame = currRoom.curr_game;
+            currGame.trump_shown = true;
+            if (currGame.trump == TRUMP_SPADES)
+                currGame.priority_deck.makeSuitAsTrump("S");
+            else if (currGame.trump == TRUMP_HEARTS)
+                currGame.priority_deck.makeSuitAsTrump("H");
+            else if (currGame.trump == TRUMP_CLUBS)
+                currGame.priority_deck.makeSuitAsTrump("C");
+            else if (currGame.trump == TRUMP_DIAMONDS)
+                currGame.priority_deck.makeSuitAsTrump("D");
+            else if (currGame.trump == TRUMP_GUARANTEE)
+                currGame.priority_deck.reversePriority();
+            callback(currGame.trump);
+        }
+    }
+
     playerDealtCard(roomId, card, playerId, callback){
         let currRoom = this._activeRooms[roomId];
         if (currRoom){
             if (playerId == currRoom.curr_game.hand_starter){
                 let currHand = new models.Hand();
                 currHand.starting_player = playerId;
-                currHand.cards.push(card);
+                currHand.starting_suit = card.suit;
+                currHand.cards.push(models.Card.fromPlayerCard(card.suit, card.rank));
                 currRoom.curr_game.curr_hand = currHand;
             }
             else{
-                currRoom.curr_game.curr_hand.cards.push(card);
-
+                currRoom.curr_game.curr_hand.cards.push(models.Card.fromPlayerCard(card.suit, card.rank));
                 if (currRoom.curr_game.curr_hand.cards.length == 4){                             // 4 needs to change for single
+                    this.determineHandWinner(currRoom);
                     currRoom.curr_game.hands_played.push(currRoom.curr_game.curr_hand);
-                    callback(null);
+                    if (currRoom.curr_game.hands_played.length == 8){
+                        var lastHandWinner = currRoom.curr_game.curr_hand.winning_player;
+                        var pair_1_points = currRoom.curr_game.pair_1_points;
+                        var pair_2_points = currRoom.curr_game.pair_2_points;
+                        var gameWon = this.updateScoreAndStartNextGame(currRoom);
+                        callback({
+                            handComplete: true,
+                            gameComplete: true,
+                            gameWon: gameWon,
+                            lastHandWinner: lastHandWinner,
+                            pair_1_points: pair_1_points,
+                            pair_2_points: pair_2_points,
+                            pair_1_score: currRoom.pair_1_score,
+                            pair_2_score: currRoom.pair_2_score,
+                            playerCards: currRoom.curr_game._playerCards,
+                            stander: currRoom.curr_game.stander,
+                            raiser: currRoom.curr_game.raiser,
+                            raiseTo: currRoom.curr_game.currentStand + 1
+                        });
+                        return;
+                    }
+                    currRoom.curr_game.hand_starter = currRoom.curr_game.curr_hand.winning_player;
+                    callback({
+                        nextPlayer: currRoom.curr_game.hand_starter,
+                        handComplete: true,
+                        gameComplete: false,
+                        pair_1_points: currRoom.curr_game.pair_1_points,
+                        pair_2_points: currRoom.curr_game.pair_2_points
+                    });
+                    return;
                 }
             }
             let nextPlayer = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, playerId)));
-            callback(nextPlayer);
+            callback({
+                nextPlayer: nextPlayer,
+                handComplete: false,
+                gameComplete: false
+            });
         }
+    }
+
+    determineHandWinner(currRoom){
+        let currentWinner = currRoom.curr_game.hand_starter;
+        let currentPlayer = currRoom.curr_game.hand_starter;
+        let highestPriority = currRoom.curr_game.priority_deck.getPriority(currRoom.curr_game.curr_hand.cards[0].suit, currRoom.curr_game.curr_hand.cards[0].rank);
+        let totalPointsInHand = currRoom.curr_game.priority_deck.getPoint(currRoom.curr_game.curr_hand.cards[0].suit, currRoom.curr_game.curr_hand.cards[0].rank);
+        let startingSuit = currRoom.curr_game.curr_hand.cards[0].suit;
+        for(var i = 1; i < 4; i++){
+            currentPlayer = this.getPlayer(currRoom, this.getNextPlayer(this.getPlayerPos(currRoom, currentPlayer)));
+            let currentPriority = 0;
+            currentPriority = currRoom.curr_game.priority_deck.getPriority(currRoom.curr_game.curr_hand.cards[i].suit, currRoom.curr_game.curr_hand.cards[i].rank);
+
+            if (currRoom.curr_game.curr_hand.cards[i].suit == startingSuit){
+                if (currentPriority > highestPriority){
+                    highestPriority = currentPriority;
+                    currentWinner = currentPlayer;
+                }
+            }
+            else{
+                if (currentPriority > highestPriority && currentPriority > 8){
+                    highestPriority = currentPriority;
+                    currentWinner = currentPlayer;
+                }
+            }
+            totalPointsInHand += currRoom.curr_game.priority_deck.getPoint(currRoom.curr_game.curr_hand.cards[i].suit, currRoom.curr_game.curr_hand.cards[i].rank);
+        }
+        if (currRoom.curr_game.hands_played.length == 7){
+            totalPointsInHand += 1;
+        }
+
+        currRoom.curr_game.curr_hand.winning_player = currentWinner;
+        currRoom.curr_game.curr_hand.points = totalPointsInHand;
+
+        let winner_pos = this.getPlayerPos(currRoom, currentWinner);
+        if (winner_pos == 10 || winner_pos == 11){
+            currRoom.curr_game.pair_1_points += totalPointsInHand;
+        }
+        else if (winner_pos == 20 || winner_pos == 21){
+            currRoom.curr_game.pair_2_points += totalPointsInHand;
+        }
+    }
+
+    updateScoreAndStartNextGame(currRoom){
+        // Update pair score
+        let gameWon = false;
+        if (currRoom.pair_1.indexOf(currRoom.curr_game.bidding_player) != -1)
+            if (currRoom.curr_game.pair_1_points >= currRoom.curr_game.bid){
+                currRoom.pair_1_score += 1;
+                gameWon = true;
+            }
+            else
+                currRoom.pair_1_score -= 1;
+        else
+            if (currRoom.curr_game.pair_2_points >= currRoom.curr_game.bid){
+                currRoom.pair_2_score += 1;
+                gameWon = true;
+            }
+            else
+                currRoom.pair_2_score -= 1;
+        
+        // Setup next game
+        currRoom.games_played.push(currRoom.curr_game);
+        currRoom.bid_starter = this.getNextPlayer(currRoom.bid_starter);
+
+        // Assemble cards played in order and shuffle
+        let assembledDeck = [];
+        for (var handPlayed of currRoom.curr_game.hands_played){
+            for (var card of handPlayed.cards){
+                assembledDeck.push(card);
+            }
+        }
+        currRoom.deck._cards = assembledDeck;
+        currRoom.deck.shuffle();
+
+        // Initialise game data
+        let newGame = new models.Game();
+        newGame.stander = this.getPlayer(currRoom, currRoom.bid_starter);
+        newGame.raiser = newGame.stander;
+
+        for (var i of [10, 20, 11, 21]) {
+            newGame._playerCards[this.getPlayer(currRoom, i)] = {};
+            newGame._playerCards[this.getPlayer(currRoom, i)]["firstHand"] = currRoom.deck._cards.splice(0, 4);
+        }
+        for (var i of [10, 20, 11, 21]) {
+            newGame._playerCards[this.getPlayer(currRoom, i)]["secondHand"] = currRoom.deck._cards.splice(0, 4);
+        }
+        currRoom.curr_game = newGame;
+        return gameWon;
     }
 
     getPlayerPos(roomObj, playerId) {

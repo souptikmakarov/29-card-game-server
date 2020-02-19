@@ -10,6 +10,7 @@ var bodyParser = require('body-parser');
 var monk = require('monk');
 
 var port = process.env.PORT || config.get('appPort');
+var host = process.env.HOST || "0.0.0.0"
 var mongoURL = config.get('db_conn_url');
 const db = monk(mongoURL);
 
@@ -23,7 +24,8 @@ var allowCrossDomain = function(req, res, next) {
     next();
 }
 
-server.listen(port, () => console.log("Starting Server. Listening on Port", port));
+
+server.listen(port, host, () => console.log(`Starting Server. Listening on ${host}:${port}`));
 
 app.use(bodyParser.json());
 app.use(function(req, res, next){
@@ -70,6 +72,12 @@ app.get('/getActiveRooms', async (req, res) => {
         else{
             res.json({ "rooms_available": null });
         }
+    });
+});
+
+app.post('/getPlayersInRoom', async (req, res) => {
+    game_rooms.getPlayersInRoom(req.body["roomId"], playersInRoom => {
+        res.json({ "playersInRoom": playersInRoom });
     });
 });
 
@@ -193,15 +201,59 @@ io.on('connection', socket => {
     });
 
     socket.on("deal_card", data => {
-        game_rooms.playerDealtCard(data.roomId, data.card, data.playerId, nextPlayer => {
-            socket.to(data.roomId).emit("player_dealt_card", {
-                playerId: data.playerId,
-                suit: data.card.suit,
-                rank: data.card.rank
-            });
-            setTimeout(()=>{
-                io.to(data.roomId).emit("play_card", nextPlayer);
-            }, 500);
+        io.to(data.roomId).emit("player_dealt_card", {
+            playerId: data.playerId,
+            suit: data.card.suit,
+            rank: data.card.rank
+        });
+        game_rooms.playerDealtCard(data.roomId, data.card, data.playerId, res => {
+            if (res.gameComplete){
+                io.to(data.roomId).emit("hand_complete", {
+                    winner: res.lastHandWinner,
+                    pair_1_points: res.pair_1_points,
+                    pair_2_points: res.pair_2_points
+                });
+                setTimeout(()=>{
+                    io.to(data.roomId).emit("game_complete", {
+                        gameWon: res.gameWon,
+                        pair_1_score: res.pair_1_score,
+                        pair_2_score: res.pair_2_score
+                    });
+
+                    setTimeout(()=>{
+                        for(var playerId of Object.keys(res.playerCards)){
+                            io.to(data.roomId).emit("player_card", {
+                                forPlayer: playerId,
+                                cards: res.playerCards[playerId]["firstHand"]
+                            });
+                        }
+                        io.to(data.roomId).emit("bidding_raise", {
+                            forPlayer: res.stander,    //res.raiser also works
+                            raiseTo: res.raiseTo
+                        });
+                    }, 3000);
+                }, 1000);
+            }
+            else{
+                let delay = 500;
+                if (res.handComplete){
+                    io.to(data.roomId).emit("hand_complete", {
+                        winner: res.nextPlayer,
+                        pair_1_points: res.pair_1_points,
+                        pair_2_points: res.pair_2_points
+                    });
+                    delay = 2000;
+                }
+                setTimeout(()=>{
+                    io.to(data.roomId).emit("play_card", res.nextPlayer);
+                }, delay);
+            }
         });
     });
+
+    socket.on("show_trump", roomId => {
+        game_rooms.showTrump(roomId, trump => {
+            io.to(roomId).emit("trump_revealed", trump);
+        });
+    })
 });

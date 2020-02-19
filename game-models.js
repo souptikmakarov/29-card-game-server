@@ -12,7 +12,6 @@ class ActiveRoom {
         this.pair_2 = [];
         this.games_played = [];
         this.deck = null;
-        this.priority_deck = null;
         this.curr_game = null;
         this.bid_starter = null;
     }
@@ -108,6 +107,9 @@ class Game {
         this._raiser = null;
         this._playerCards = {};
         this._hand_starter = null;
+        this._pair_1_points = 0;
+        this._pair_2_points = 0;
+        this.priority_deck = null;
     }
 
     get bid() {
@@ -181,12 +183,29 @@ class Game {
     set curr_hand(curr_hand) {
         this._curr_hand = curr_hand;
     }
+
+    get pair_1_points() {
+        return this._pair_1_points;
+    }
+
+    set pair_1_points(points) {
+        this._pair_1_points = points;
+    }
+
+    get pair_2_points() {
+        return this._pair_2_points;
+    }
+
+    set pair_2_points(points) {
+        this._pair_2_points = points;
+    }
 }
 
 class Hand {
     constructor() {
         this.starting_player = null;
         this.cards = [];
+        this.starting_suit = null;
         this.winning_player = null;
         this.points = 0;
     }
@@ -201,7 +220,7 @@ class Card {
     }
 
     static fromPlayerCard(suit, rank){
-        return new Card
+        return new Card(suit, rank);
     }
 
     get suit() {
@@ -247,40 +266,8 @@ class Card {
 
 class Deck {
     constructor() {
-        this._cards = [
-            new Card("H", "J", 8, 3),
-            new Card("H", "9", 7, 2),
-            new Card("H", "A", 6, 1),
-            new Card("H", "10", 5, 1),
-            new Card("H", "K", 4, 0),
-            new Card("H", "Q", 3, 0),
-            new Card("H", "8", 2, 0),
-            new Card("H", "7", 1, 0),
-            new Card("D", "J", 8, 3),
-            new Card("D", "9", 7, 2),
-            new Card("D", "A", 6, 1),
-            new Card("D", "10", 5, 1),
-            new Card("D", "K", 4, 0),
-            new Card("D", "Q", 3, 0),
-            new Card("D", "8", 2, 0),
-            new Card("D", "7", 1, 0),
-            new Card("C", "J", 8, 3),
-            new Card("C", "9", 7, 2),
-            new Card("C", "A", 6, 1),
-            new Card("C", "10", 5, 1),
-            new Card("C", "K", 4, 0),
-            new Card("C", "Q", 3, 0),
-            new Card("C", "8", 2, 0),
-            new Card("C", "7", 1, 0),
-            new Card("S", "J", 8, 3),
-            new Card("S", "9", 7, 2),
-            new Card("S", "A", 6, 1),
-            new Card("S", "10", 5, 1),
-            new Card("S", "K", 4, 0),
-            new Card("S", "Q", 3, 0),
-            new Card("S", "8", 2, 0),
-            new Card("S", "7", 1, 0)
-        ];
+        this._cards = [];
+        this.initPriorityDeck();
     }
 
     getPriority(suit, rank){
@@ -299,7 +286,7 @@ class Deck {
         }
     }
 
-    firstShuffle() {
+    firstShuffle() {                //Fisher-Yates SHuffle
         var m = this._cards.length, t, i;
 
         // While there remain elements to shuffle…
@@ -334,9 +321,46 @@ class Deck {
 
     makeSuitAsTrump(suit){
         for (let card of this._cards) {
-            if(card.suit == suit)
+            if(card.suit == suit.toUpperCase())
                 card.markTrump();
         }
+    }
+
+    initPriorityDeck(){
+        this._cards = [
+            new Card("H", "J", 8, 3),
+            new Card("H", "9", 7, 2),
+            new Card("H", "A", 6, 1),
+            new Card("H", "10", 5, 1),
+            new Card("H", "K", 4, 0),
+            new Card("H", "Q", 3, 0),
+            new Card("H", "8", 2, 0),
+            new Card("H", "7", 1, 0),
+            new Card("D", "J", 8, 3),
+            new Card("D", "9", 7, 2),
+            new Card("D", "A", 6, 1),
+            new Card("D", "10", 5, 1),
+            new Card("D", "K", 4, 0),
+            new Card("D", "Q", 3, 0),
+            new Card("D", "8", 2, 0),
+            new Card("D", "7", 1, 0),
+            new Card("C", "J", 8, 3),
+            new Card("C", "9", 7, 2),
+            new Card("C", "A", 6, 1),
+            new Card("C", "10", 5, 1),
+            new Card("C", "K", 4, 0),
+            new Card("C", "Q", 3, 0),
+            new Card("C", "8", 2, 0),
+            new Card("C", "7", 1, 0),
+            new Card("S", "J", 8, 3),
+            new Card("S", "9", 7, 2),
+            new Card("S", "A", 6, 1),
+            new Card("S", "10", 5, 1),
+            new Card("S", "K", 4, 0),
+            new Card("S", "Q", 3, 0),
+            new Card("S", "8", 2, 0),
+            new Card("S", "7", 1, 0)
+        ];
     }
 }
 
