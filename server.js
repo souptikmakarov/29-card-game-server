@@ -25,7 +25,7 @@ var allowCrossDomain = function(req, res, next) {
 }
 
 
-server.listen(port, host, () => console.log(`Starting Server. Listening on ${host}:${port}`));
+server.listen(port, host, () => console.log(`Server Up. Listening on ${host}:${port}`));
 
 app.use(bodyParser.json());
 app.use(function(req, res, next){
