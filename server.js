@@ -41,6 +41,11 @@ app.get('/', function(req,res) {
     res.sendFile(path.join(__dirname+'/game-client/index.html'));
 });
 
+app.get('**', function(req,res) {
+    res.redirect('/');
+    // res.sendFile(path.join(__dirname+'/game-client/index.html'));
+});
+
 app.post('/register', async (req, res)=>{
     let pName = req.body["name"];
     let pPass = req.body["password"];

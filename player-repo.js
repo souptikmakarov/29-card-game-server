@@ -5,6 +5,7 @@ const PLAYER = "player";
 class PlayerRepo{
     constructor(db){
         this._db = db;
+        this._loggedInPlayers = [];
     }
 
     registerPlayer(playerName, playerPass, callback){
@@ -18,6 +19,7 @@ class PlayerRepo{
                     err: null,
                     playerId: res._id.toString()
                 });
+                this._loggedInPlayers.push(player);
             }
             else{
                 callback({
@@ -33,12 +35,20 @@ class PlayerRepo{
         let player = new models.Player();
         player.name = playerName;
         player.password = playerPass;
+        if (this._loggedInPlayers.find(e => e.name == player.name && e.password == player.password)){
+            callback({
+                err: "Player already logged in",
+                playerId: null
+            });
+            return;
+        }
         player_col.findOne({_name: playerName, _password: playerPass }, (err, res) => {
             if (!err && res){
                 callback({
                     err: null,
                     playerId: res._id.toString()
                 });
+                this._loggedInPlayers.push(player);
             }
             else{
                 callback({
