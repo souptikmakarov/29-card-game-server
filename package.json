@@ -4,7 +4,7 @@
   "description": "Game server for the 29 card game",
   "main": "server.js",
   "dependencies": {
-    "config": "^3.2.5",
+    "config": "^3.3.8",
     "express": "^4.17.1",
     "monk": "^7.1.2",
     "socket.io": "^2.3.0"
